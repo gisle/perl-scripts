@@ -16,6 +16,7 @@ $y = &PAGE_TOP - &TB_MARGIN;
 $prev_level = 0;
 $average_char_width = &FONT_SIZE / 2;
 $max_x_pos = 0;  # keep track of it in order produce bounding box
+$max_depth = -1;
 
 open(tmp,"+>/tmp/tree$$") || die "Can't create temporary file";
 unlink("/tmp/tree$$");
@@ -57,11 +58,18 @@ if ($ARGV[0] =~ /^-/) {
    if (/f/) {
       $list_files = 1;
    }
+   elsif (/d/) {
+      $max_depth = shift;
+	# ToDo: Check for numerical argument
+   }
    else {
-      print STDERR "Usage: $0 [-f] [dirname]\n";
+      print STDERR "Usage: $0 [-f] [-d max_depth] [dirname]\n";
       exit(1);
    }
 }
+
+die "$0: $ARGV[0] does not exist, stopped" unless -e $ARGV[0];
+
 &list_dir($ARGV[0],0);
 
 print "showpage\n";
@@ -116,7 +124,7 @@ sub list_dir
 		  readlink($file), $level + 1);
 	 }
 	 else {
-            &list_dir($file,$level+1);
+            &list_dir($file,$level+1) unless ($max_depth > -1) && ($level + 1 > $max_depth);
          }
       }
       elsif ($list_files) {
@@ -224,6 +232,9 @@ pstree \- produce directory map in PostScript
 [
 .B \-f
 ] [
+.B \-d
+.I max_depth
+] [
 .I dirname
 ]
 .SH DESCRIPTION
@@ -237,6 +248,10 @@ The output conforms to Adobe's
 document structuring conventions (version 3.0), and the EPSF
 specification version 3.0.
 .SH OPTIONS
+.TP 5
+\fB\-d\fP \fImax_depth\fP
+Descend at most max_depth (a non-negative integer) levels
+of directories below the command line arguments.
 .TP 5
 .B \-f
 Include ordinary files in the map. Without this flag only
