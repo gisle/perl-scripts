@@ -94,7 +94,7 @@ sub list_dir
     my($dirname, $level) = @_;
     my(@content, $file);
 
-    if ($MaxDepth == -1 || level < $MaxDepth) {
+    if ($MaxDepth == -1 || $level < $MaxDepth) {
 	opendir(D,$dirname);
 	@content = sort(grep(!/^\.\.?$/,readdir(D)));
 	closedir(D);
