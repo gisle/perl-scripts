@@ -6,12 +6,15 @@
 # $Id$
 
 require 'getopts.pl';
+require 'ctime.pl';
 
-$Usage = "Usage: $0 [-fFlLv] [-d max_depth] [dirname]]\n";
+$Usage = "Usage: $0 [-afFlLv] [-d max_depth] [-e perl-expr] [dirname]]\n";
 
-die $Usage unless &Getopts('d:fFlLv');
+die $Usage unless &Getopts('ad:e:fFlLv');
 
 $Version	= defined($opt_v) ? $opt_v : 0;
+$ListAll	= defined($opt_a) ? $opt_a : 0;
+$ExcludeFile	= defined($opt_e) ? $opt_e : 0;
 $ListFiles	= defined($opt_f) ? $opt_f : 0;
 $ListTypes	= defined($opt_F) ? $opt_F : 0;
 $MaxDepth	= defined($opt_d) ? $opt_d : -1;
@@ -35,45 +38,17 @@ sub LEFT_MARGIN       { 60; }
 sub FONT              { "Times-Roman"; }
 sub FONT_SIZE         { 10; }
 sub DIR_LEVEL_INDENT  { 90; }
+sub VERSION	      { '$Revision$'; }
 
 $y = &PAGE_TOP - &TB_MARGIN;
 $prev_level = 0;
 $average_char_width = &FONT_SIZE / 2;
 $max_x_pos = 0;  # keep track of it in order produce bounding box
 
+
 open(tmp,"+>/tmp/tree$$") || die "Can't create temporary file";
 unlink("/tmp/tree$$");
 select(tmp);
-
-print "/mws
-{
-    1 dict begin
-    gsave
-    /sw 4 index stringwidth pop def
-    dup sw le { %if
-      dup sw div
-      dup 1 3 div lt {
-	dup 3 mul
-      } {
-        1
-      } ifelse
-      matrix scale currentfont exch makefont setfont
-      /sw exch def
-    } { %else
-      pop
-    } ifelse
-    % The stack is now: (string) x y
-    moveto show
-    grestore
-    sw % leave width of string on stack
-  end
-} def
-";
-print  "/s {show} bind def\n";
-print  "/m {moveto} bind def\n";
-printf "/%s findfont %d scalefont setfont\n",&FONT,&FONT_SIZE;
-print  "0.1 setlinewidth\n";
-
 
 &list_dir($ARGV[0],0);
 
@@ -81,33 +56,36 @@ print "showpage\n";
 seek(tmp,0,0); # rewind the temporary file
 
 select(STDOUT);
-print "%!PS-Adobe-3.0 EPSF-3.0\n";
-print "%%Title: (Directory map of $ARGV[0])\n";
-print "%%Creator: pstree, (C) 1991 Gisle Aas, NR\n";
-printf "%%%%DocumentFonts: %s\n", &FONT;
 
 if ($y < &TB_MARGIN) {
    $page_size = (&PAGE_TOP - 2 * &TB_MARGIN);
    $scale_factor = ($page_size)/((&PAGE_TOP - &TB_MARGIN ) - $y);
-   printf "%%%%BoundingBox: %.0f %.0f %.0f %.0f\n",
-       &LEFT_MARGIN, &TB_MARGIN + &FONT_SIZE * $scale_factor,
-       &LEFT_MARGIN + $max_x_pos * $scale_factor,
-       &PAGE_TOP - &TB_MARGIN + &FONT_SIZE * $scale_factor;
-   printf "%.1f %.3f translate\n", &LEFT_MARGIN,
-                                   (-$y)*$scale_factor + &TB_MARGIN;
-   printf "%.5f dup scale\n", $scale_factor;
+
+   $lly = &TB_MARGIN + &FONT_SIZE * $scale_factor;
+   $ty = (-$y)*$scale_factor + &TB_MARGIN;
 } else {
-   printf "%%%%BoundingBox: %.0f %.0f %.0f %.0f\n",
-       &LEFT_MARGIN, $y + &FONT_SIZE,
-       &LEFT_MARGIN + $max_x_pos,
-       &PAGE_TOP - &TB_MARGIN + &FONT_SIZE;
-   printf "%.1f 0 translate\n", &LEFT_MARGIN;
+   $scale_factor = 1;
+   $lly = $y + &FONT_SIZE;
+   $ty = 0;
 };
+
+$llx = &LEFT_MARGIN;
+$urx = &LEFT_MARGIN + $max_x_pos * $scale_factor;
+$ury = &PAGE_TOP - &TB_MARGIN + &FONT_SIZE * $scale_factor;
+$tx = &LEFT_MARGIN;
+
+&DSC_PrintHeader($llx, $lly, $urx, $ury);
+&DSC_PrintProlog;
+&DSC_DocumentSetup($tx, $ty, $scale_factor);
+
+print "%%Page 1 1\n";
 
 # copy temporary file to standard out
 while (<tmp>) {
    print;
 }
+
+&DSC_PrintTrailer;
 exit;
 
 #------------------------------------------
@@ -126,6 +104,8 @@ sub list_dir
 	   closedir(d);
 	
 	   while ($file = shift(@content)) {
+	      next if $file =~ /^\./ && !$opt_a;
+	      next if $opt_e && eval $opt_e;
 	      $file = "$dirname/$file";
 	      if ((-d $file) || ((-l $file) && $ForceLinks && !(-f $file))) {
 		 if (-l $file) {     # symbolic link; do not follow these
@@ -226,7 +206,7 @@ sub emitt
       $y -= &FONT_SIZE;
    }
    elsif ($level == ($prev_level - 1)) {
-      local($ypos) = ($top[$level+1] - $bottom[$level+1]) / 2 + 
+      local($ypos) = ($top[$level+1] - $bottom[$level+1]) / 2 +
                      $bottom[$level+1];
       &write($level,$ypos,$text,0);
       &lines($level,$ypos,$pos[$level+1],$text);
@@ -304,11 +284,82 @@ sub basename	# (@pathnames) -> @basenames
 	return @paths;
 }
 
+sub DSC_PrintHeader
+# Print Document Header.
+{
+	local($llx, $lly, $urx, $ury) = @_;
+
+	print "%!PS-Adobe-3.0 EPSF-3.0\n";
+	print "%%Title: (Directory map of $ARGV[0])\n";
+	printf "%%%%Creator: pstree %s, (C) 1991-1994 Gisle Aas, NR\n", &VERSION;
+	print "%%CreationDate: ", &ctime(time);
+	printf "%%%%DocumentNeededResources: font %s\n", &FONT;
+	printf "%%%%BoundingBox: %.0f %.0f %.0f %.0f\n", $llx, $lly, $urx, $ury;
+	print "%%EndComments\n";
+}
+
+sub DSC_PrintProlog
+# Print Document Prolog.
+# Definition of procedures.
+# Do not forget to update revision number of procset!
+{
+	print "%%BeginProlog\n";
+	printf "%%%%BeginResource: procset pstree 1.7 0\n";
+	print "/mws
+{
+    1 dict begin
+    gsave
+    /sw 4 index stringwidth pop def
+    dup sw le { %if
+      dup sw div
+      dup 1 3 div lt {
+	dup 3 mul
+      } {
+        1
+      } ifelse
+      matrix scale currentfont exch makefont setfont
+      /sw exch def
+    } { %else
+      pop
+    } ifelse
+    % The stack is now: (string) x y
+    moveto show
+    grestore
+    sw % leave width of string on stack
+  end
+} def
+";
+	print "/s {show} bind def\n";
+	print "/m {moveto} bind def\n";
+
+	print "%%EndResource\n";
+	print "%%EndProlog\n";
+}
+
+sub DSC_DocumentSetup
+{
+	local($tx, $ty, $sf) = @_;
+
+	print "%%BeginSetup\n";
+	printf "/%s findfont %d scalefont setfont\n", &FONT, &FONT_SIZE;
+	print  "0.1 setlinewidth\n";
+   	printf "%.1f %.3f translate\n", $tx, $ty;
+	printf "%.5f dup scale\n", $sf unless $sf == 1;
+	print "%%EndSetup\n";
+}
+
+sub DSC_PrintTrailer
+{
+	print "%%Trailer\n";
+	print "% Currently there is no Trailer Section needed\n";
+	print "%%EOF\n";
+}
+
 ###########################################################################
 	# These next few lines are legal in both Perl and nroff.
 
 .00;			# finish .ig
- 
+
 'di			\" finish diversion--previous line must be blank
 .nr nl 0-1		\" fake up transition to first page again
 .nr % 0			\" start at page 1
@@ -319,10 +370,13 @@ pstree \- produce directory map in PostScript
 .SH SYNOPSIS
 .B pstree
 [
-.B \-fFLv
+.B \-afFLv
 ] [
 .B \-d
 .I max_depth
+] [
+.B \-e
+.I perl-expr
 ] [
 .I dirname
 ]
@@ -336,6 +390,27 @@ pointing to directories are included in the map.  The output conforms
 to Adobe's document structuring conventions (version 3.0), and the EPSF
 specification version 3.0.
 .SH OPTIONS
+.TP 5
+\fB\-a\fP
+List all files in directories, including all files with names that start
+with a `.'.
+.TP 5
+\fB\-e\fP \fIperl-expr\fP
+Exclude file from listing if the \fIperl-expr\fP returns true.
+The \fIperl-expr\fP accesses the current file name
+The \fIperl-expr\fP may use the file name  (perl variable \fI$file\fP)
+and the complete pathname of the directory of the current file (perl
+variable \fI$dirname\fP).
+.P
+To exclude, e.g., all block special files:
+	-e '-b $dirname/$file',
+To exclude all backup files:
+	-e '$file =~ /\.BKP$/',
+To exclude all files and directories within RCS directories:
+	-e '$dirname =~ /\/RCS\//',
+To exclude all files and directories within RCS directories: and the
+directory RCS itself:
+	-e '$file =~ /RCS/'
 .TP 5
 \fB\-d\fP \fImax_depth\fP
 Descend at most max_depth (a non-negative integer) levels
@@ -386,7 +461,8 @@ The image is not scaled down if it overflows the right edge of the page.
 .SH AUTHOR
 (C) Gisle Aas, Norwegian Computing Centre (NR), 1991. <Gisle.Aas@nr.no>
 .br
-with additions of Peter W. Osel, Siemens AG, Munich, 1993.  <pwo@zfe.siemens.de>
+with additions of Peter W. Osel, Siemens AG, Munich, 1993, 1994.
+<pwo@HL.Siemens.DE>
 .SH NOTES
 PostScript is a trademark of Adobe Systems, Incorporated.
 Perl is written by Larry Wall and is distributed under the
@@ -394,8 +470,7 @@ terms of the GNU General Public License.
 .SH BUGS
 Symbolic links are never traversed to avoid problems with circular links.
 .P
-The output should be similar to previous versions of
+The output should be similar to previous (< 1.7) versions of
 .BR pstree ,
 if you provide the `-l' option.
 .ex
-
