@@ -1,8 +1,7 @@
 #!/usr/bin/perl -w
 
-# $Id$
-
 use strict;
+my $id = q$Id$;
 
 #--- configuration
 my $fontsize = 8;
@@ -15,6 +14,10 @@ my $right_margin =  40;
 my $top_margin = 40;
 my $bot_margin = $top_margin;
 #--- end configuration
+
+my $prog = $id;
+$prog =~ s/^Id:\s+([^,]+),v/$1/;
+$prog =~ s/\s+\d+:.*//;  # kill hour:min:sec and rest
 
 my $offset = 0;
 my @xref;
@@ -129,11 +132,9 @@ for (@page_cont) {
 my $info = obj(<<EOT);
 <<
 /CreationDate (@{[scalar localtime]})
-/Producer ($Id$)
+/Producer ($prog)
 >>
 EOT
-
-
 
 xref_trailer($root, $info);
 exit;
