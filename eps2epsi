@@ -7,7 +7,12 @@
 # is included. You need GhostScript to render the bitmaps for you.
 
 # $Log$
-# Revision 1.3  1992-08-25 14:56:05  aas
+# Revision 1.4  1992-09-08 17:41:27  aas
+# Some applications makes real (not integer) boundingbox coordinates, despite
+# what the DSC says.  These applications should really be fixed.  But while we
+# wait for that to happen....
+#
+# Revision 1.3  1992/08/25  14:56:05  aas
 # Hvis kommentarene i begynnelsen ikke sluttet med %%EndComments, så spiste
 # vi opp første linje av postscript koden.
 #
@@ -34,10 +39,10 @@ die 'Not PostScript file' unless ($epsfile[0] =~ /^%!PS-Adobe-/);
 # Get the dimensions of the picture
 for (@epsfile) {
    ($llx, $lly, $urx, $ury) =
-       /^%%BoundingBox:\s*(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)/;
+      /^%%BoundingBox:\s*(-?[0-9\.]+)\s+(-?[0-9\.]+)\s+(-?[0-9\.]+)\s+(-?[0-9\.]+)/;
    last if defined($llx);
 }
-die 'No %%BoundingBox found in file' unless defined($llx);
+die "No %%BoundingBox found in file" unless defined($llx);
 
 # Calculate 
 $preview_width = int(($opt_w || 79) / 2) * 8;
