@@ -1,0 +1,195 @@
+#!/usr/local/bin/perl
+eval "exec /usr/local/bin/perl -S $0 $*"
+	if 0;
+
+
+# $Id$    (Gisle Aas, 1991)
+
+# Prints a (big) EPSF on paper. It can tile the EPS picture over some
+# pages or it may scale it down so that it fits on a single page.
+# Scaling is the default.  Poster expects the EPS file to have a
+# "showpage" at the end.  The following options are recognized:
+#
+#    -t      : use tiling. The EPS file is printed on several pages
+#               without scaling.
+#    -f      : scale to fill out the whole page.
+#    -s<num> : scale uniformly, but not more than <num>.
+#
+# The default is '-s1'.
+
+
+
+# Command line options
+while ($_ = shift) {
+   $tile = 1,next        if /^-t$/;
+   $fit  = 1,next        if /^-f$/;
+   $scale_factor = $1, next if /^-s\s*(-?\d+.?\d*)$/;
+   print STDERR "Usage: poster [-t|-f|-s<scale factor>]\n";
+   exit;
+}
+$scale_factor = 1 unless defined($scale_factor);
+die "Illegal scale factor\n" if $scale_factor == 0;
+
+@slurp = <STDIN>;
+
+grep(s/^%%BoundingBox:\s*(-?\d+)\s+(-?\d+)\s+(-?\d+)\s(-?\d+)\s*$// ? 
+     @bb = ($1,$2,$3,$4) : 0, @slurp);
+die "No %%BoundingBox\n" unless defined(@bb);
+
+$page_height = &cm(29.7);
+$page_width  = &cm(21.0);
+$v_margin = &cm(2);
+$h_margin = &cm(2);
+$overlap = &cm(0.1);
+
+
+if ($scale_factor != 1) {
+   unshift(@slurp, sprintf("%.4g dup scale\n", $scale_factor));
+   grep($_ *= $scale_factor, @bb);
+   if ($scale_factor < 0) {   # Needs to swap 'll' with 'ur'
+      local(@tmp) =  @bb[0,1];
+      @bb[0,1] = @bb[2,3];
+      @bb[2,3] = @tmp;
+   }
+}
+
+#
+# Find out which way to turn the paper
+#
+$bb_width =    $bb[2] - $bb[0];
+$bb_height =   $bb[3] - $bb[1];
+@area = ($h_margin, $v_margin, $page_width-$h_margin, $page_height-$h_margin);
+$area_width =  $area[2] - $area[0];
+$area_height = $area[3] - $area[1];
+if ($tile) {
+   $h_pages     = int($bb_width  / ($area_width  - $overlap)) + 1;
+   $v_pages     = int($bb_height / ($area_height - $overlap)) + 1;
+   $h_pages_rot = int($bb_width  / ($area_height - $overlap)) + 1;
+   $v_pages_rot = int($bb_height / ($area_width  - $overlap)) + 1;
+   $need_rotate = 1 if $h_pages * $v_pages > $h_pages_rot * $v_pages_rot;
+} elsif (&portrait(@bb) != &portrait(@area)) {
+   $need_rotate = 1; #true
+}
+if ($need_rotate) {
+   @area = @area[1,0,3,2];
+   $area_width =  $area[2] - $area[0];
+   $area_height = $area[3] - $area[1];
+}
+
+
+# How to place an EPS file.
+#   1. Translate the orgin to the new orgin you want on the page
+#   2. Rotate if the EPS shall be rotated
+#   3. Scale if the EPS shall be scaled
+#   4. Translate the lower left corner of the EPS files bounding to the orgin.
+#        i.e. '-llx -lly translate'
+
+
+print "%!PS-Adobe-3.0
+%%Pages: (atend)
+%%EndComments
+";
+#print "%%@bb\n%%@area\n";
+
+
+unless (defined($tile)) {
+   &new_page;
+   $scale_x = $area_width / $bb_width;
+   $scale_y = $area_height / $bb_height;
+   $scale_x = $scale_y = &min($scale_x, $scale_y, 1) unless ($fit);
+
+   printf "%.1f %.1f translate %% the new orgin\n",
+         $area[0], $area[3] - $bb_height * $scale_y;
+   printf "%.3f %.3f scale\n", $scale_x, $scale_y;
+   printf "%.1f %.1f translate %% -llx -lly translate\n", -$bb[0], -$bb[1];
+   print "%%BeginDocument: slurp\n";
+   print @slurp;
+   print "%%EndDocument\n";
+
+} else {   # tiling must sein
+   $h_pages = int($bb_width / ($area_width - $overlap)) + 1;
+   $v_pages = int($bb_height / ($area_height - $overlap)) + 1;
+
+   for $y (1 .. $v_pages) {
+      for $x (1 .. $h_pages) {
+         &new_page;
+         $side = "Side $x av $h_pages"    if $v_pages == 1 && $h_pages != 1;
+         $side = "Side $y av $v_pages"    if $v_pages != 1 && $h_pages == 1;
+         $side = "Side $x-$y"             if $v_pages != 1 && $h_pages != 1;
+       
+         printf "(%s) dup %.1f exch stringwidth pop sub 20 moveto show\n",
+	      $side, ($need_rotate ? $page_height : $page_width) - 20;
+
+
+         @clip = @area;
+         $clip[0] = 0 if $x == 1;
+         $clip[1] = 0 if $y == $v_pages;  
+         $clip[2] = ($need_rotate ? $page_height : $page_width) 
+            if $x == $h_pages;
+         $clip[3] = (!$need_rotate? $page_height : $page_width)
+            if $y == 1;
+         for (0,2) {
+            printf "%.1f %.1f moveto %.1f %.1f lineto %.1f %.1f moveto" .
+                   " %.1f %.1f lineto\n",
+                $clip[$_], $clip[1] - 10, $clip[$_], $clip[1] - 25,
+                $clip[$_], $clip[3] + 10, $clip[$_], $clip[3] + 25;
+         }
+         for (1,3) {
+            printf "%.1f %.1f moveto %.1f %.1f lineto %.1f %.1f moveto" .
+                   " %.1f %.1f lineto\n",
+                $clip[0] - 10, $clip[$_], $clip[0] - 25, $clip[$_],
+                $clip[2] + 10, $clip[$_], $clip[2] + 25, $clip[$_];
+         }
+         printf "0.0 setlinewidth stroke 1 setlinewidth\n";
+
+         printf "newpath %.1f %.1f moveto %.1f %.1f lineto %.1f %.1f lineto" .
+                " %.1f %.1f lineto\nclosepath clip newpath\n",
+                 @clip[0,1, 2,1, 2,3, 0,3];
+
+         $xorg = ($x - 1) * ($area_width - $overlap);
+         $yorg = $bb_height - $y * ($area_height - $overlap);
+         printf "%.1f %.1f translate\n", $area[0] - $bb[0] - $xorg, 
+                                         $area[1] - $bb[1] - $yorg;
+         print "\n%%BeginDocument: slurp\n";
+         print @slurp;
+         print "%%EndDocument\n";
+      }
+   }
+
+}
+
+print "%%Trailer
+%%Pages: $page_no
+%%EOF
+";
+#-------------END--------------------
+
+sub new_page
+{
+   $page_no++;
+   print "\n%%Page: $page_no $page_no\n";
+   print "/Times-Italic findfont 5 scalefont setfont
+          20 20 moveto (poster 1.1) show\n";
+   printf "90 rotate 0 -%.1f translate %% landscape mode\n", $page_width
+     if $need_rotate;
+}
+
+
+sub min   # return the least value in the parameter list.
+{
+   local($min) = shift;
+   for (@_) {
+      $min = $_ if ($min > $_);
+   }
+   $min;
+}
+
+sub cm { $_[0] * 72 / 2.54; }
+
+
+sub portrait # find out if a box is in portrait or landscape mode
+{
+   local($llx,$lly,$urx,$ury) = @_;
+   $urx - $llx < $ury - $lly;
+}
+
