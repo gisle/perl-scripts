@@ -1,0 +1,11 @@
+#!/usr/local/bin/perl
+
+$one='\s+0x[\da-fA-F]+\s+\(([^)]+)\)';
+open(KEYS, "xmodmap -pk|") || die "Can't run xmodmap";
+open(OUT, "|sort") || die "Can't run sort";
+select OUT;
+while(<KEYS>) {
+  if (/^\s+(\d+)$one($one)?($one)?($one)?/) { 
+    print "$2\t$4\t$6\t$8\n" if defined($6);
+  }
+}
