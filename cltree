@@ -56,16 +56,16 @@ $prev_level = 0;
 $average_char_width = &FONT_SIZE / 2;
 $max_x_pos = 0;  # keep track of it in order produce bounding box
 
-open(tmp,"+>/tmp/tree$$") || die "Can't create temporary file";
+open(TMP,"+>/tmp/tree$$") || die "Can't create temporary file";
 unlink("/tmp/tree$$");
-select(tmp);
+select(TMP);
 
 
 for $each (sort keys %classes) {
    &do_node($each, 0) unless defined($parent{$each});
 }
 
-seek(tmp,0,0); # rewind the temporary file
+seek(TMP,0,0); # rewind the temporary file
 
 select(STDOUT);
 print "%!PS-Adobe-3.0 EPSF-3.0\n";
@@ -121,7 +121,7 @@ printf "/%s findfont %d scalefont setfont\n",&FONT,&FONT_SIZE;
 print  "0.1 setlinewidth\n";
 
 # copy temporary file to standard out
-while (<tmp>) {
+while (<TMP>) {
    print;
 }
 print "showpage\n";
