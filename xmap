@@ -1,0 +1,43 @@
+#!/usr/local/bin/perl
+
+$rcfile="$ENV{HOME}/rcfile";
+open(RCFILE, $rcfile) 
+    || open(RCFILE, "/local/lib/X11/xinit/rcfile") 
+    || die "Can't open $rcfile or /local/lib/X11/xinit/rcfile";
+while(<RCFILE>) {
+   if (/^\s*([^=\s]+)\s*=\s*(\S+)/)
+	{ $alt{$1} = $2; }
+   elsif (/^\s*([^=\s]+)\s+([^=\s]+)\s*=\s*([^=\s]+)\s+(\S+)/)
+	{ $alt{"$1;$2"} = "$3 $4"; }
+}
+close RCFILE;
+
+$one='\s+0x[\da-fA-F]+\s+\(([^)]+)\)';
+open(KEYS, "xmodmap -pk|") || die "Can't run xmodmap";
+
+open(OUT, "|xmodmap -") || die "Can't run xmodmap";
+select OUT unless shift eq "-n";
+
+while(<KEYS>) {
+  $s3 = $s4 = $ns1 = $ns2 = $ns3 = $ns4 = undef;
+  
+  if (/^\s+(\d+)$one($one)?($one)?($one)?/) { 
+    $code = $1;
+    $ns1 = $2; 
+    $ns2 = $4 if defined $4;
+    $s3  = $6 if defined $6;
+    $s4  = $8 if defined $8;
+    unless (defined($ns2)) {
+      $ns2 = $ns1;
+      $ns1 = "\l$ns1" if length $ns1 == 1;
+    }
+    $ns3 = $alt{$ns1} if defined $alt{$ns1};
+    $ns4 = $alt{$ns2} if defined $alt{$ns2};
+    ($ns3,$ns4) = split(" ", $alt{"$ns1;$ns2"}) if defined $alt{"$ns1;$ns2"};
+    $ns3 = $ns4 if defined $ns4 && !defined $ns3;
+    ($ns1,$ns2) = ($ns2,undef)
+	if (!defined $ns4 && !defined $ns3 && $ns1 eq "\l$ns2");
+    print "keycode $code = $ns1 $ns2 $ns3 $ns4\n"
+	if $ns3 ne $s3 || $ns4 ne $s4;
+  }
+}
