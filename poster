@@ -1,16 +1,14 @@
 #!/usr/local/bin/perl
-'di';
-'ig00';
 
 # $Id$
 
-require 'getopts.pl';
-require 'ctime.pl';
+use Getopt::Std;
 
+$0 =~ s,.*/,,;  # use only base name
 $Usage = "Usage: $0 [-ftv] [-s scale_factor]\n";
 
 # Command line options:
-die $Usage unless &Getopts('flps:tv');
+die $Usage unless getopts('flps:tv');
 
 $fit		= defined($opt_f) ? $opt_f : 0;
 $tile		= defined($opt_t) ? $opt_t : 0;
@@ -187,7 +185,7 @@ sub DSC_PrintHeader
 	print "%!PS-Adobe-3.0\n";
 	print "%%Pages: (atend)\n";
 	printf "%%%%Creator: poster %s, (C) 1991-1994 Gisle Aas, NR\n", &VERSION;
-	print "%%CreationDate: ", &ctime(time);
+	print "%%CreationDate: ", scalar(localtime), "\n";
 	print "%%EndComments\n";
 	#print "%%@bb\n%%@area\n";
 }
@@ -199,61 +197,60 @@ sub DSC_PrintTrailer
 	print "%%EOF\n";
 }
 
-###########################################################################
-# These next few lines are legal in both Perl and nroff.
 
-.00;                    # finish .ig
+__END__
 
-'di                     \" finish diversion--previous line must be blank
-.nr nl 0-1              \" fake up transition to first page again
-.nr % 0                 \" start at page 1
-';<<'.ex'; #__END__ #### From here on it's a standard manual page #########
-.TH POSTER 1 "$Date$"
-.SH NAME
-poster \- print Encapsulated PostScript as (huge) poster
-.SH SYNOPSYS
-.B poster
-[
-.B \-ftv
-] [
-.B \-s
-.I scale_factor
-]
-.SH DESCRIPTION
-Prints a (big) \s-2EPSF\s0 on paper.
-It can tile the \s-2EPS\s0 picture over some pages or it may scale it down
-so that it fits on a single page.
-Scaling is the default.
-Poster expects the \s-2EPS\s0 file to have a "showpage" at the end.
-.SH OPTIONS
-.TP 5
-.B \-f
+=head1 NAME
+
+poster - print Encapsulated PostScript as (huge) poster
+
+=head1 SYNOPSYS
+
+ poster [-ftv] [-s <scale-factor>]
+
+=head1 DESCRIPTION
+
+Prints a (big) EPSF on paper.  It can tile the EPS picture over some
+pages or it may scale it down so that it fits on a single page.
+Scaling is the default.  Poster expects the EPS file to have a
+"showpage" at the end.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -f
+
 scale to fill out the whole page.
-.TP 5
-\fB\-s\fP \fI<num>\fP
-scale uniformly, but not more than <num>.  The default is '-s 1'.
-.TP 5
-.B \-t
-use tiling.  The \s-2EPS\s0 file is printed on several pages without scaling.
-.TP 5
-.B \-v
+
+=item -s <num>
+
+scale uniformly, but not more than <num>.  The default is C<-s 1>.
+
+=item -t
+
+use tiling.  The EPS file is printed on several pages without scaling.
+
+=item -v
+
 print version ond standard error and exit.
-.SH SEE ALSO
-.BR cltree (1),
-.BR pstree (1),
-.BR postscript (5)
-.SH AUTHOR
+
+=back
+
+=head1 SEE ALSO
+
+L<cltree>, L<pstree>
+
+=head1 AUTHOR
+
 (C) Gisle Aas, Norwegian Computing Centre (NR), 1991. <Gisle.Aas@nr.no>
 .br
 with additions of Peter W. Osel, Siemens AG, Munich, 1993, 1994.
 <pwo@HL.Siemens.DE>
-.SH NOTES
-PostScript is a trademark of Adobe Systems, Incorporated.
-Perl is written by Larry Wall and is distributed under the
-terms of the GNU General Public License.
-.SH BUGS
+
+=head1 BUGS
+
 Although Adobe's Document Structering Convention requires the Bounding
-Box to use integer coordinates only, we accept real coordinates
-(some applications seem to have not read Adobe's Document Structering
+Box to use integer coordinates only, we accept real coordinates (some
+applications seem to have not read Adobe's Document Structering
 Conventions).
-.ex
