@@ -1,0 +1,153 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my $offset = 0;
+my @xref;
+
+out("%PDF-1.0\n");
+
+my $font1 = obj(<<EOT);
+<<
+/Type /Font
+/Subtype /Type1
+/Name /F1
+/BaseFont /Courier
+/Encoding /WinAnsiEncoding
+>>
+EOT
+
+my $procset = obj("[/PDF /Text]\n");
+
+
+my @page_cont;
+
+
+for my $file (@ARGV) {
+    open(F, $file) || next;
+
+    my $x = 80;
+    my $y = 755;
+
+    my $cont_id = start_obj();
+    my $len_id = $cont_id + 1;
+
+    my $start_pos = out("<< /Length $len_id 0 R >>\nstream\n");
+
+    out("BT\n");
+    out("/F1 8 Tf\n$x $y Td 10 TL\n");
+
+    while (<F>) {
+	# produce content
+	chomp;
+	if (/^\s*$/) {
+	    out("T*\n");
+	    next;
+	}
+
+	$_ =~ s/([\\()])/\\$1/g;
+	out("($_) '\n");
+    }
+
+    my $end_pos = out("ET\n");
+
+    out("endstream\n");
+    end_obj();
+
+    obj($end_pos - $start_pos);
+
+    close(F);
+
+    push(@page_cont, $cont_id);
+}
+
+# Catalog
+my $root = start_obj();
+my $pages = $root + 1;
+out("<<\n/Type /Catalog\n/Pages $pages 0 R\n>>\n");
+end_obj();
+
+# Pages
+start_obj() == $pages || die;
+my $page_count = @page_cont;
+out("<<\n/Type /Pages\n/Count $page_count\n/MediaBox [0 0 595 841]\n");
+
+out("/Kids [\n");
+
+my $page_id = $pages + 1;
+for (1..$page_count) {
+    out("$page_id 0 R\n");
+    $page_id++;
+}
+
+out("]\n>>\n");
+end_obj();
+
+# Page
+for (@page_cont) {
+    obj("<<\n/Type /Page\n/Parent $pages 0 R\n/Resources <<\n/ProcSet $procset 0 R\n/Font << /F1 $font1 0 R >>\n>>\n/Contents $_ 0 R\n>>\n");
+}
+
+my $info = obj(<<EOT);
+<<
+/CreationDate (@{[scalar localtime]})
+/Producer ($0)
+>>
+EOT
+
+
+
+xref_trailer($root, $info);
+exit;
+
+#-----------------------------------------
+
+sub start_obj
+{
+    push(@xref, $offset);
+    my $obj_id = @xref;
+    out("$obj_id 0 obj\n");
+    return $obj_id;
+}
+
+sub end_obj
+{
+    out("endobj\n");
+}
+
+sub obj
+{
+    my $obj_id = start_obj();
+    my $obj .= shift;
+    $obj .= "\n" unless $obj =~ /\n$/;
+    out($obj);
+    end_obj();
+    return $obj_id;
+}
+
+sub out
+{
+    for (@_) {
+	$offset += length($_);
+	print $_;
+    }
+    $offset;
+}
+
+sub xref_trailer
+{
+    my($root, $info) = @_;
+    my $startxref = $offset;
+    my $xref_num = @xref + 1;
+    print "xref\n0 $xref_num\n";
+    print "0000000000 65535 f \n";
+    for (@xref) {
+	printf "%010d %05d n \n", $_, 0;
+    }
+
+    print "trailer\n<<\n/Size $xref_num\n";
+    print "/Root $root 0 R\n";
+    print "/Info $info 0 R\n" if $info;
+    print ">>\n";
+    print "startxref\n$startxref\n%%EOF\n";
+}
