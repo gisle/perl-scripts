@@ -7,8 +7,9 @@
 # is included. You need GhostScript to render the bitmaps for you.
 
 # $Log$
-# Revision 1.1  1992-07-30 13:31:00  aas
-# Initial revision
+# Revision 1.2  1992-07-30 13:32:19  aas
+# Oppdatert for GhostScript versjon 2.4.  Det var ny syntaks for
+# makeimagedevice.
 #
 # Revision 1.1  1991/05/28  09:18:04  aas
 # Initial revision
@@ -54,7 +55,12 @@ print GSFILE <<"---EndGhostScriptProgram---";
 %---- Setup a memory device --------
 [1 0 0 -1 0 BITIMAGE_HEIGHT]
 BITIMAGE_WIDTH BITIMAGE_HEIGHT
-[1 1 1 rgbcolor 0 0 0 rgbcolor] makeimagedevice
+%
+% [1 1 1 rgbcolor 0 0 0 rgbcolor] <-- 2.3 arguments
+% <ff 00>                         <-- 2.4 arguments from ghost@aladdin.com
+%
+<ff 00> 
+makeimagedevice
 setdevice
 
 %--- Some transformations
