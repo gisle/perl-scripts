@@ -1,37 +1,17 @@
 #!/usr/local/bin/perl
-'di';
-'ig00';
 
-# EPSI file generator. Written by Gisle Aas, NR, 1991
+# EPSI file generator.
+#
 # Converts all types of EPS-files to the EPSI format where a bitmap preview
 # is included. You need GhostScript to render the bitmaps for you.
+#
+# $Id$
 
-# $Log$
-# Revision 1.5  1992-12-02 08:35:36  aas
-# New option -i to do in-place editing of the EPS file.
-#
-# Revision 1.4  1992/09/08  17:41:27  aas
-# Some applications makes real (not integer) boundingbox coordinates, despite
-# what the DSC says.  These applications should really be fixed.  But while we
-# wait for that to happen....
-#
-# Revision 1.3  1992/08/25  14:56:05  aas
-# Hvis kommentarene i begynnelsen ikke sluttet med %%EndComments, så spiste
-# vi opp første linje av postscript koden.
-#
-# Revision 1.2  1992/07/30  13:32:19  aas
-# Oppdatert for GhostScript versjon 2.4.  Det var ny syntaks for
-# makeimagedevice.
-#
-# Revision 1.1  1991/05/28  09:18:04  aas
-# Initial revision
-#
+$0 =~ s,.*/,,;  # use only base name
 
-$prog_name = substr($0,rindex($0,"/")+1);
-require 'getopts.pl';
-unless (&Getopts('iw:')) {
-  print STDOUT "Usage: $prog_name [-i] [-w <preview width>] [<file>]\n";
-  exit 1;
+use Getopt::Std;
+unless (getopts('iw:')) {
+  die "Usage: $0 [-i] [-w <preview width>] [<file>]\n";
 }
 
 die 'To many files' if ($#ARGV > 0);
@@ -71,7 +51,7 @@ print GSFILE <<"---EndGhostScriptProgram---";
 BITIMAGE_WIDTH BITIMAGE_HEIGHT
 %
 % [1 1 1 rgbcolor 0 0 0 rgbcolor] <-- 2.3 arguments
-% <ff 00>                         <-- 2.4 arguments from ghost@aladdin.com
+% <ff 00>                         <-- 2.4 arguments from ghost\@aladdin.com
 %
 <ff 00> 
 makeimagedevice
@@ -109,7 +89,7 @@ die "Can't run GhostScript" unless $? == 0;
 unlink $gsfile;
 
 @preview = grep(/^-----/ .. 1, @gsoutput);   # remove GhostScript garbage
-shift(preview);
+shift(@preview);
 if ($#preview < 0) {
   print STDERR "GhostScript gives no output for the specified file\n";
   print STDERR @gsoutput;
@@ -122,8 +102,8 @@ if (defined $opt_i) {
    select EPSIFILE;
 }
 
-print shift(epsfile);
-$_ = shift(epsfile);
+print shift(@epsfile);
+$_ = shift(@epsfile);
 while (/^%%/) {
   if (/^%%BoundingBox:/) {
     print "%%BoundingBox: $llx $lly $urx $ury\n" if !defined($boundingbox);
@@ -133,7 +113,7 @@ while (/^%%/) {
   } else {
     print;
   }
-  $_ = shift(epsfile);
+  $_ = shift(@epsfile);
 }
 print "%%BoundingBox: $llx $lly $urx $ury\n" if !defined($boundingbox);
 print "%%EndComments
@@ -151,61 +131,53 @@ if (defined $opt_i) {
 }
 
 
+__END__
 
-###########################################################################
-	# These next few lines are legal in both Perl and nroff.
+=head1 NAME
 
-.00;			# finish .ig
- 
-'di			\" finish diversion--previous line must be blank
-.nr nl 0-1		\" fake up transition to first page again
-.nr % 0			\" start at page 1
-';<<'.ex'; #__END__ #### From here on it's a standard manual page #########
-.TH EPS2EPSI 1 "May 1991"
-.SH NAME
-eps2epsi \- Filter for inclusion of a preview in an EPS file
-.SH SYNOPSIS
-.B eps2epsi
-[
-.B \-i
-] [
-.B \-w
-.I preview_width
-] [
-.I filename
-]
-.SH DESCRIPTION
-.B Eps2epsi
-puts a preview section in a PostScript file (preferably EPSF).
-The preview produced
-is in the encapsulated PostScript interchange format (EPSI)
-suitable for import by FrameMaker and other document composing
-systems.
-.B Eps2epsi
+eps2epsi - Filter for inclusion of a preview in an EPS file
+
+=head1 SYNOPSIS
+
+    eps2epsi [-i] [-w <preview_width>] [<eps-file>]
+
+=head1 DESCRIPTION
+
+The C<eps2epsi> program puts a preview section in a PostScript file
+(preferably EPSF).  The preview produced is in the encapsulated
+PostScript interchange format (EPSI) suitable for import by FrameMaker
+and other document composing systems.
+
+C<Eps2epsi>
 reads the file specified (or standard input) and sends the new file
 with the preview included to standard output.
-.PP
-.B Esp2epsi
-uses
-.B GhostScript
-to render the preview bitmap, which means that
-.B GhostScript
-must be installed at your system before you can use
-.B eps2epsi.
-.SH OPTIONS
-.TP 5
-.B \-i
+
+C<Esp2epsi> uses B<GhostScript> to render the preview bitmap, which
+means that B<GhostScript> must be installed at your system before you
+can use C<eps2epsi>.
+
+=head1 OPTIONS
+
+=over 4
+
+=item -i
+
 Edit the file in-place. A backup file is made with the suffix ~.
-.TP 5
-.BI \-w " n"
-Set the width (in characters) of the preview section. This also specifies the
-resolution of the preview as
-.I n
-times 4 horizontally.
-.SH SEE ALSO
-.BR perl (1),
-.BR gs(1)
-.SH AUTHOR
-Gisle Aas, Norwegian Computing Center (NR), Oslo, Norway.
-<Gisle.Aas@nr.no>
-.ex
+
+=item -w <n>
+
+Set the width (in characters) of the preview section. This also
+specifies the resolution of the preview as I<n> times 4 horizontally.
+
+=back
+
+
+=head1 SEE ALSO
+
+L<gs>
+
+=head1 AUTHOR
+
+Gisle Aas <aas@oslonett.no>
+
+=cut
