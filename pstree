@@ -1,0 +1,257 @@
+#!/local/bin/perl -w
+'di';
+'ig00';
+# pstree(1) - produce directory map in PostScript.
+# $Id$
+
+sub PAGE_TOP          { 792; }
+#sub PAGE_RIGHT_EDGE   { 595; }
+sub TB_MARGIN         { 60; }
+sub LEFT_MARGIN       { 60; }
+sub FONT              { "Times-Roman"; }
+sub FONT_SIZE         { 10; }
+sub DIR_LEVEL_INDENT  { 90; }
+
+$y = &PAGE_TOP - &TB_MARGIN;
+$prev_level = 0;
+$average_char_width = &FONT_SIZE / 2;
+$max_x_pos = 0;  # keep track of it in order produce bounding box
+
+open(tmp,"+>/tmp/tree$$") || die "Can't create temporary file";
+unlink("/tmp/tree$$");
+select(tmp);
+
+print "/mws
+{
+    1 dict begin
+    gsave
+    /sw 4 index stringwidth pop def
+    dup sw le { %if
+      dup sw div
+      dup 1 3 div lt {
+	dup 3 mul
+      } {
+        1
+      } ifelse
+      matrix scale currentfont exch makefont setfont
+      /sw exch def
+    } { %else
+      pop
+    } ifelse
+    % The stack is now: (string) x y
+    moveto show
+    grestore
+    sw % leave width of string on stack
+  end
+} def
+";
+print  "/s {show} bind def\n";
+print  "/m {moveto} bind def\n";
+printf "/%s findfont %d scalefont setfont\n",&FONT,&FONT_SIZE;
+print  "0.1 setlinewidth\n";
+
+push(@ARGV,'.');
+if ($ARGV[0] =~ /^-/) {
+   $_ = shift;
+   last if (/^--$/);
+   if (/f/) {
+      $list_files = 1;
+   }
+   else {
+      print STDERR "Usage: $0 [-f] [dirname]\n";
+      exit(1);
+   }
+}
+&list_dir($ARGV[0],0);
+
+print "showpage\n";
+seek(tmp,0,0); # rewind the temporary file
+
+select(STDOUT);
+print "%!PS-Adobe-3.0 EPSF-3.0\n";
+print "%%Title: (Directory map of $ARGV[0])\n";
+print "%%Creator: pstree, (C) 1991 Gisle Aas, NR\n";
+printf "%%%%DocumentFonts: %s\n", &FONT;
+
+if ($y < &TB_MARGIN) {
+   $page_size = (&PAGE_TOP - 2 * &TB_MARGIN);
+   $scale_factor = ($page_size)/((&PAGE_TOP - &TB_MARGIN ) - $y);
+   printf "%%%%BoundingBox: %.0f %.0f %.0f %.0f\n",
+       &LEFT_MARGIN, &TB_MARGIN + &FONT_SIZE * $scale_factor,
+       &LEFT_MARGIN + $max_x_pos * $scale_factor,
+       &PAGE_TOP - &TB_MARGIN + &FONT_SIZE * $scale_factor;
+   printf "%.1f %.3f translate\n", &LEFT_MARGIN,
+                                   (-$y)*$scale_factor + &TB_MARGIN;
+   printf "%.5f dup scale\n", $scale_factor;
+} else {
+   printf "%%%%BoundingBox: %.0f %.0f %.0f %.0f\n",
+       &LEFT_MARGIN, $y + &FONT_SIZE,
+       &LEFT_MARGIN + $max_x_pos,
+       &PAGE_TOP - &TB_MARGIN + &FONT_SIZE;
+   printf "%.1f 0 translate\n", &LEFT_MARGIN;
+};
+
+# copy temporary file to standard out
+while (<tmp>) {
+   print;
+}
+exit;
+
+#------------------------------------------
+
+
+sub list_dir
+{
+   local($dirname) = shift;
+   local($level) = shift;
+   local(@content);
+   opendir(d,$dirname);
+   @content = sort(grep(!/^\.\.?$/,readdir(d)));
+   closedir(d);
+   while ($file = shift(@content)) {
+      $file = "$dirname/$file";
+      if (-d $file) {
+	 if (-l $file) {     # symbolic link; do not follow these
+	    &emitt(substr($file,rindex($file,'/')+1) . " -> " .
+		  readlink($file), $level + 1);
+	 }
+	 else {
+            &list_dir($file,$level+1);
+         }
+      }
+      elsif ($list_files) {
+	 &emitt(substr($file,rindex($file,'/')+1), $level+1);
+      }
+   }
+   &emitt(substr($dirname,rindex($dirname,'/')+1), $level);
+}
+
+# Uses the following global variables:
+#    $y          : current vertical position (initial value = 'top of page')
+#    $prev_level : the level reportet last time on emit (init value = 0)
+#    @top        : current top position at different levels
+#    @bottom     : current bottom position at different levels
+#    @pos        : string of positions at different levels
+sub emitt
+{
+   local($text) = shift;
+   local($level) = shift;
+
+   # Do some substitutions on the $text so that it can be used as a
+   # PostScript string constant.
+   $text =~ s/[\\\(\)]/\\$&/g;
+
+   if ($level == $prev_level) {
+      &write($level,$y,$text,1);
+      $pos[$level] .= " $y";
+      $bottom[$level] = $y;
+      $y -= &FONT_SIZE;
+   }
+   elsif ($level > $prev_level) {
+      &write($level,$y,$text,1);
+      local($i);
+      for ($i=$prev_level+1;$i<$level;$i++) {
+          $pos[$i] = '';
+      }
+      $pos[$level] = "$y";
+      $top[$level] = $y;
+      $bottom[$level] = $y;
+      $y -= &FONT_SIZE;
+   }
+   elsif ($level == ($prev_level - 1)) {
+      local($ypos) = ($top[$level+1] - $bottom[$level+1]) / 2 + 
+                     $bottom[$level+1];
+      &write($level,$ypos,$text,0);
+      &lines($level,$ypos,$pos[$level+1],$text);
+      if ($pos[$level]) {
+         $pos[$level] .= " $ypos";
+         $bottom[$level] = $ypos;
+      }
+      else {
+         $pos[$level] = "$ypos";
+         $top[$level] = $ypos;
+         $bottom[$level] = $ypos;
+      }
+   }
+   else {
+      die "Humm..., jump from level $prev_level to level $level";
+   }
+   $prev_level = $level;
+}
+
+sub write
+{
+   local($x,$y,$text,$pop_stringwidth) = @_;
+   local($max_stringwidth) = &DIR_LEVEL_INDENT * 0.9;
+   $x = $x * &DIR_LEVEL_INDENT;
+   printf "(%s) %.1f %.1f %.2f mws", $text, $x, $y, $max_stringwidth;
+   print " pop" if $pop_stringwidth;
+   print "\n";
+   # Try to estimate the width of the string
+   local($stringwidth) = length($text) * $average_char_width;
+   $x += $stringwidth > $max_stringwidth ? $max_stringwidth : $stringwidth;
+   $max_x_pos = $x if ($x > $max_x_pos);
+}
+
+sub lines
+{
+   local($x,$y,$to,$text) = @_;
+   local(@to) = split(/ /,$to);
+   $x = $x * &DIR_LEVEL_INDENT;
+   $y += &FONT_SIZE/3;
+   printf "%.1f add %.1f m\n",$x+1,$y;
+   printf "[";
+   for (@to) { printf "%.1f ", $_ + &FONT_SIZE/3; }
+   printf "]\n";
+   printf "{gsave %.1f exch lineto stroke grestore} forall\n",
+          $x + &DIR_LEVEL_INDENT - 4;
+}
+
+###########################################################################
+	# These next few lines are legal in both Perl and nroff.
+
+.00;			# finish .ig
+ 
+'di			\" finish diversion--previous line must be blank
+.nr nl 0-1		\" fake up transition to first page again
+.nr % 0			\" start at page 1
+';<<'.ex'; #__END__ #### From here on it's a standard manual page #########
+.TH PSTREE 1 "October 1991"
+.SH NAME
+pstree \- produce directory map in PostScript
+.SH SYNOPSIS
+.B pstree
+[
+.B \-f
+] [
+.I dirname
+]
+.SH DESCRIPTION
+The output from this program is a PostScript program that will
+produce a "map" of the directory tree from the current directory
+and down. If a 
+.I dirname
+is given the directory map from the given
+directory and down is produced.
+The output conforms to Adobe's 
+document structuring conventions (version 3.0), and the EPSF
+specification version 3.0.
+.SH OPTIONS
+.TP 5
+.B \-f
+Include ordinary files in the map. Without this flag only
+the overall directory structure is shown.
+.SH SEE ALSO
+.BR find (1),
+.BR ls (1),
+.BR perl(1),
+.BR postscript(7)
+.SH BUGS
+The image is not scaled down if it overflows the right edge of the page.
+.SH AUTHOR
+(C) Gisle Aas, Norwegian Computing Centre (NR), 1991. <Gisle.Aas@nr.no>
+.SH NOTES
+PostScript is a trademark of Adobe Systems, Incorporated.
+Perl is written by Larry Wall and is distributed under the
+terms of the GNU General Public License.
+.ex
