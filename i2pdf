@@ -5,7 +5,7 @@ use strict;
 my $offset = 0;
 my @xref;
 
-out("%PDF-1.0\n");
+out("%PDF-1.1\n%ац°х\n");
 
 my $font1 = obj(<<EOT);
 <<
