@@ -3,24 +3,43 @@
 # $Id$
 
 # Usage: cltree <c++ header files>
-# Prints an overview over all C++ classses defined. Classes defined with
-# multiple inheritance are not printed.
+# Prints an overview over all C++ classses defined.
 
 $/ = undef;
 while (<>) {
-   while (s/(class|struct)\s+(\w+)\s*(:\s*(public|protected|private)?\s*(\w+))?\s*\{//)
+   while (s/(class|struct)\s+(\w+)\s*(:\s*((public|protected|private|virtual)\s+)*\s*(\w+))?\s*(,\s*[^{]+)?\{//)
    {
+      # class classname : public baseclass, private baseclass2 {
+      #
+      # $1 = class
+      # $2 = classname
+      # $3 = : public baseclass
+      # $4 = public <ws>
+      # $5 = public
+      # $6 = baseclass
+      # $7 = , private baseclass2
+
       $class = $2;
-      if (defined($5)) {
-         $parent{$class} = $5;
-         $children{$5} .= "$class ";
-         $parent_relationship{$5} = $4;
+      if (defined($6)) {
+         $parent{$class} = $6;
+         $children{$6} .= "$class ";
+         $parent_relationship{$6} = $5;
+         $extra_parents{$class} = join(",",&base_split($7)) if defined($7);
+         $classes{$6} = 1;  # in case base class in not defined
       }
       $file{$2} = $ARGV;
-      push(@classes, $class);
+      $classes{$class} = 1;
    }
 }
 
+sub base_split
+{
+   local($_) = shift;
+   s/,/ /g;
+   s/(public|protected}private|virtual)//g;
+   s/^\s+//;
+   return split;
+}
 
 
 #------------------------------------ from the pstree program---
@@ -42,7 +61,7 @@ unlink("/tmp/tree$$");
 select(tmp);
 
 
-for $each (sort @classes) {
+for $each (sort keys %classes) {
    &do_node($each, 0) unless defined($parent{$each});
 }
 
