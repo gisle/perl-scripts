@@ -2,12 +2,7 @@
 'di';
 'ig00';
 # pstree(1) - produce directory map in PostScript.
-# This is an unofficially patched version of pstree.   Send all comments
-# and bug reports to Peter W. Osel <pwo@guug.de>.  This software is in
-# beta right now.
 #
-# $Id$
-# Based on:
 # $Id$
 
 require 'getopts.pl';

@@ -2,12 +2,7 @@
 'di';
 'ig00';
 
-# This is an unofficially patched version of poster.   Send all comments
-# and bug reports to Peter W. Osel <pwo@guug.de>.  This software is in
-# beta right now.
-# $Id$    (Peter W. Osel, 1993)
-# based on:
-# $Id$    (Gisle Aas, 1991)
+# $Id$    (Gisle Aas, 1993)
 
 require 'getopts.pl';
 
