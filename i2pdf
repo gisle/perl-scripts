@@ -84,6 +84,7 @@ for my $file (@ARGV) {
 
 	$_ =~ s/([\\()])/\\$1/g;
 	out("($_) '\n");
+	# XXX should check that the line above is not too long...
     }
 
     my $end_pos = out("ET\n");
@@ -128,7 +129,7 @@ for (@page_cont) {
 my $info = obj(<<EOT);
 <<
 /CreationDate (@{[scalar localtime]})
-/Producer ($0)
+/Producer ($Id$)
 >>
 EOT
 
