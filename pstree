@@ -1,8 +1,38 @@
-#!/local/bin/perl -w
+#!/usr/local/bin/perl
 'di';
 'ig00';
 # pstree(1) - produce directory map in PostScript.
+# This is an unofficially patched version of pstree.   Send all comments
+# and bug reports to Peter W. Osel <pwo@guug.de>.  This software is in
+# beta right now.
+#
 # $Id$
+# Based on:
+# $Id$
+
+require 'getopts.pl';
+
+$Usage = "Usage: $0 [-fFlL] [-d max_depth] [dirname]]\n";
+
+die $Usage unless &Getopts('d:fFlLV');
+
+$Version	= defined($opt_V) ? $opt_V : 0;
+$ListFiles	= defined($opt_f) ? $opt_f : 0;
+$ListTypes	= defined($opt_F) ? $opt_F : 0;
+$MaxDepth	= defined($opt_d) ? $opt_d : -1;
+$ForceLinks	= defined($opt_L) ? $opt_L : 0;
+$ShowLinkTarget	= defined($opt_l) ? $opt_l : 0;
+
+if ($Version) {
+	print STDERR "pstree $Revision$ ($Date$)\n";
+	exit(0);
+	}
+
+# Sanity checks:
+die "pstree: max_depth must be numeric\n" unless $MaxDepth =~ /\d+/;
+
+push(@ARGV,'.');
+die "$0: $ARGV[0] does not exist, stopped" unless -e $ARGV[0];
 
 sub PAGE_TOP          { 792; }
 #sub PAGE_RIGHT_EDGE   { 595; }
@@ -16,7 +46,6 @@ $y = &PAGE_TOP - &TB_MARGIN;
 $prev_level = 0;
 $average_char_width = &FONT_SIZE / 2;
 $max_x_pos = 0;  # keep track of it in order produce bounding box
-$max_depth = -1;
 
 open(tmp,"+>/tmp/tree$$") || die "Can't create temporary file";
 unlink("/tmp/tree$$");
@@ -51,24 +80,6 @@ print  "/m {moveto} bind def\n";
 printf "/%s findfont %d scalefont setfont\n",&FONT,&FONT_SIZE;
 print  "0.1 setlinewidth\n";
 
-push(@ARGV,'.');
-if ($ARGV[0] =~ /^-/) {
-   $_ = shift;
-   last if (/^--$/);
-   if (/f/) {
-      $list_files = 1;
-   }
-   elsif (/d/) {
-      $max_depth = shift;
-	# ToDo: Check for numerical argument
-   }
-   else {
-      print STDERR "Usage: $0 [-f] [-d max_depth] [dirname]\n";
-      exit(1);
-   }
-}
-
-die "$0: $ARGV[0] does not exist, stopped" unless -e $ARGV[0];
 
 &list_dir($ARGV[0],0);
 
@@ -113,25 +124,79 @@ sub list_dir
    local($dirname) = shift;
    local($level) = shift;
    local(@content);
-   opendir(d,$dirname);
-   @content = sort(grep(!/^\.\.?$/,readdir(d)));
-   closedir(d);
-   while ($file = shift(@content)) {
-      $file = "$dirname/$file";
-      if (-d $file) {
-	 if (-l $file) {     # symbolic link; do not follow these
-	    &emitt(substr($file,rindex($file,'/')+1) . " -> " .
-		  readlink($file), $level + 1);
-	 }
-	 else {
-            &list_dir($file,$level+1) unless ($max_depth > -1) && ($level + 1 > $max_depth);
-         }
-      }
-      elsif ($list_files) {
-	 &emitt(substr($file,rindex($file,'/')+1), $level+1);
-      }
+   local($file);
+
+   if (($MaxDepth == -1) || ($level < $MaxDepth)) {
+	   opendir(d,$dirname);
+	   @content = sort(grep(!/^\.\.?$/,readdir(d)));
+	   closedir(d);
+	
+	   while ($file = shift(@content)) {
+	      $file = "$dirname/$file";
+	      if ((-d $file) || ((-l $file) && $ForceLinks && !(-f $file))) {
+		 if (-l $file) {     # symbolic link; do not follow these
+		    &emitt(&fmtName($file), $level + 1);
+		 }
+		 else {
+	            &list_dir($file,$level+1);
+	         }
+	      }
+	      elsif ($ListFiles) {
+		 &emitt(&fmtName($file), $level+1);
+	      }
+	   }
    }
-   &emitt(substr($dirname,rindex($dirname,'/')+1), $level);
+   &emitt(&fmtName($dirname), $level);
+}
+
+sub fmtName
+{
+	local($file) = @_;
+	local($linkname);
+	local($abslinkname);
+	local($dirname);
+	local($basename);
+
+	$dirname = &dirname($file);
+	$basename = &basename($file);
+	$basename = '/' unless $basename;	# kludge for /
+
+	if (-l $file) {
+		$linkname = readlink $file;
+		$abslinkname = $linkname =~ m#^/# ? $linkname : $dirname . '/' . $linkname;
+		if ($ShowLinkTarget) {
+			return ($basename . " -> " . $linkname . &ft($abslinkname));
+			}
+		else {
+			return ($basename . &ft($file));
+			}
+		}
+	return($basename . &ft($file));
+}
+
+sub ft
+{
+	local($file) = @_;
+	local($link);
+	
+	return '' unless $ListTypes;
+	lstat($file);
+
+	if (-l $file) {
+		$link = readlink($file);
+		$abslink = $link =~ m#^/# ? $link : &dirname($file) . '/' . $link;
+		stat($abslink);
+		return '>' if -d _;
+		return '@' if -e _;
+		return '&';
+		}
+	return '=' if -S _;	# File is an AF_UNIX domain socket.
+	return '|' if -p _;	# File is a named pipe (fifo)
+	return '%' if -c _;	# File is a character device
+	return '#' if -b _;	# File is a block device
+	return '/' if -d _;	# File is directory
+	return '*' if -x _;	# File is executable
+	return '';
 }
 
 # Uses the following global variables:
@@ -209,10 +274,40 @@ sub lines
    $y += &FONT_SIZE/3;
    printf "%.1f add %.1f m\n",$x+1,$y;
    printf "[";
-   for (@to) { printf "%.1f ", $_ + &FONT_SIZE/3; }
+   for (@to) { printf "%.1f\n", $_ + &FONT_SIZE/3; }
    printf "]\n";
    printf "{gsave %.1f exch lineto stroke grestore} forall\n",
           $x + &DIR_LEVEL_INDENT - 4;
+}
+
+sub dirname	# (@pathnames) -> @dirnames
+{
+	local(@paths) = @_;
+	local($pfx);
+
+	for (@paths) {
+		m,^(/?/?)/*,; $pfx=$1; $_=$'; # collect leading slashes
+		s,/+$,,;			# strip trailing slashes
+		s,[^/]+$,,;			# strip basename
+		s,/+$,,;			# strip trailing slashes again
+		length($pfx) || ($pfx='./');	# no null paths
+		$_=$pfx.$_;			# prefix + tail
+		}
+
+	return @paths;
+}
+
+sub basename	# (@pathnames) -> @basenames
+{
+	local(@paths) = @_;
+
+	for (@paths) {
+		s,/+$,,;
+		s,.*/,,;
+#		length || ($_='.');
+		}
+
+	return @paths;
 }
 
 ###########################################################################
@@ -224,13 +319,13 @@ sub lines
 .nr nl 0-1		\" fake up transition to first page again
 .nr % 0			\" start at page 1
 ';<<'.ex'; #__END__ #### From here on it's a standard manual page #########
-.TH PSTREE 1 "October 1991"
+.TH PSTREE 1 "$Date$"
 .SH NAME
 pstree \- produce directory map in PostScript
 .SH SYNOPSIS
 .B pstree
 [
-.B \-f
+.B \-fFLV
 ] [
 .B \-d
 .I max_depth
@@ -238,35 +333,74 @@ pstree \- produce directory map in PostScript
 .I dirname
 ]
 .SH DESCRIPTION
-The output from this program is a PostScript program that will
-produce a "map" of the directory tree from the current directory
-and down. If a 
+The output from this program is a PostScript program that will produce
+a "map" of the directory tree from the current directory and down. If a
 .I dirname
-is given the directory map from the given
-directory and down is produced.
-The output conforms to Adobe's 
-document structuring conventions (version 3.0), and the EPSF
+is given the directory map from the given directory and down is
+produced.  Without any options, only directories or symbolic links
+pointing to directories are included in the map.  The output conforms
+to Adobe's document structuring conventions (version 3.0), and the EPSF
 specification version 3.0.
 .SH OPTIONS
 .TP 5
 \fB\-d\fP \fImax_depth\fP
 Descend at most max_depth (a non-negative integer) levels
-of directories below the command line arguments.
+of directories below the given directory.
 .TP 5
 .B \-f
-Include ordinary files in the map. Without this flag only
-the overall directory structure is shown.
+Include ordinary files and links to ordinary files in the map.
+Without this flag only the overall directory structure is shown.
+.TP 5
+.B \-F
+append the following characters depending on the file type:
+.sp
+.RS +.6i
+.ta 1.2i 1.7i
+.nf
+=	File is an AF_UNIX domain socket.
+|	File is a named pipe (fifo)
+%	File is a character device
+#	File is a block device
+/	File is a directory
+*	File is executable
+@	File is a symbolic link pointing
+	to a non-directory
+>	File is a symbolic link pointing
+	to a directory
+&	File is a symbolic link pointing
+	to nowhere
+.RE
+.DT
+.fi
+.sp
+.TP 5
+.B \-l
+Show link targets, i.e. where symbolic links are pointing to.
+.TP 5
+.B \-L
+Include links pointing to nowhere in the map.
+.TP 5
+.B \-V
+print version ond standard error and exit.
 .SH SEE ALSO
 .BR find (1),
 .BR ls (1),
-.BR perl(1),
-.BR postscript(7)
+.BR perl (1),
+.BR postscript (5)
 .SH BUGS
 The image is not scaled down if it overflows the right edge of the page.
 .SH AUTHOR
 (C) Gisle Aas, Norwegian Computing Centre (NR), 1991. <Gisle.Aas@nr.no>
+.br
+with additions of Peter W. Osel, Siemens AG, Munich, 1993.  <pwo@zfe.siemens.de>
 .SH NOTES
 PostScript is a trademark of Adobe Systems, Incorporated.
 Perl is written by Larry Wall and is distributed under the
 terms of the GNU General Public License.
+.P
+Symbolic links are never traversed to avoid problems with circular links.
+.P
+The output should be similar to previous versions of
+.BR pstree ,
+if you provide the `-l' option.
 .ex

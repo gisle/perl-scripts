@@ -1,38 +1,38 @@
 #!/usr/local/bin/perl
-eval "exec /usr/local/bin/perl -S $0 $*"
-	if 0;
+'di';
+'ig00';
 
-
+# This is an unofficially patched version of poster.   Send all comments
+# and bug reports to Peter W. Osel <pwo@guug.de>.  This software is in
+# beta right now.
+# $Id$    (Peter W. Osel, 1993)
+# based on:
 # $Id$    (Gisle Aas, 1991)
 
-# Prints a (big) EPSF on paper. It can tile the EPS picture over some
-# pages or it may scale it down so that it fits on a single page.
-# Scaling is the default.  Poster expects the EPS file to have a
-# "showpage" at the end.  The following options are recognized:
-#
-#    -t      : use tiling. The EPS file is printed on several pages
-#               without scaling.
-#    -f      : scale to fill out the whole page.
-#    -s<num> : scale uniformly, but not more than <num>.
-#
-# The default is '-s1'.
+require 'getopts.pl';
 
+$Usage = "Usage: $0 [-ftV] [-s scale_factor]\n";
 
+# Command line options:
+die $Usage unless &Getopts('flps:tV');
 
-# Command line options
-while ($_ = shift) {
-   $tile = 1,next        if /^-t$/;
-   $fit  = 1,next        if /^-f$/;
-   $scale_factor = $1, next if /^-s\s*(-?\d+.?\d*)$/;
-   print STDERR "Usage: poster [-t|-f|-s<scale factor>]\n";
-   exit;
-}
-$scale_factor = 1 unless defined($scale_factor);
+$Version	= defined($opt_V) ? $opt_V : 0;
+$fit		= defined($opt_f) ? $opt_f : 0;
+$tile		= defined($opt_t) ? $opt_t : 0;
+$scale_factor	= defined($opt_s) ? $opt_s : 1;
+
+if ($Version) {
+	print STDERR "poster $Revision$ ($Date$)\n";
+	exit(0);
+	}
+
+# Sanity checks:
 die "Illegal scale factor\n" if $scale_factor == 0;
+die "Illegal scale factor\n" unless $scale_factor =~ /-?\d+.?\d*/;
 
 @slurp = <STDIN>;
 
-grep(s/^%%BoundingBox:\s*(-?\d+)\s+(-?\d+)\s+(-?\d+)\s(-?\d+)\s*$// ? 
+grep(s/^%%BoundingBox:\s*(-?[0-9\.]+)\s+(-?[0-9\.]+)\s+(-?[0-9\.]+)\s+(-?[0-9\.]+)\s*$// ?
      @bb = ($1,$2,$3,$4) : 0, @slurp);
 die "No %%BoundingBox\n" unless defined(@bb);
 
@@ -92,7 +92,7 @@ print "%!PS-Adobe-3.0
 #print "%%@bb\n%%@area\n";
 
 
-unless (defined($tile)) {
+unless ($tile) {
    &new_page;
    $scale_x = $area_width / $bb_width;
    $scale_y = $area_height / $bb_height;
@@ -193,3 +193,61 @@ sub portrait # find out if a box is in portrait or landscape mode
    $urx - $llx < $ury - $lly;
 }
 
+###########################################################################
+# These next few lines are legal in both Perl and nroff.
+
+.00;                    # finish .ig
+
+'di                     \" finish diversion--previous line must be blank
+.nr nl 0-1              \" fake up transition to first page again
+.nr % 0                 \" start at page 1
+';<<'.ex'; #__END__ #### From here on it's a standard manual page #########
+.TH POSTER 1 "$Date$"
+.SH NAME
+poster \- print Encapsulated PostScript as (huge) poster
+.SH SYNOPSYS
+.B poster
+[
+.B \-ftV
+] [
+.B \-s
+.I scale_factor
+]
+.SH DESCRIPTION
+Prints a (big) \s-2EPSF\s0 on paper.
+It can tile the \s-2EPS\s0 picture over some pages or it may scale it down
+so that it fits on a single page.
+Scaling is the default.
+Poster expects the \s-2EPS\s0 file to have a "showpage" at the end.
+.SH OPTIONS
+.TP 5
+.B \-f
+scale to fill out the whole page.
+.TP 5
+\fB\-s\fP \fI<num>\fP
+scale uniformly, but not more than <num>.  The default is '-s 1'.
+.TP 5
+.B \-t
+use tiling.  The \s-2EPS\s0 file is printed on several pages without scaling.
+.TP 5
+.B \-V
+print version ond standard error and exit.
+.SH SEE ALSO
+.BR cltree (1),
+.BR pstree (1),
+.BR postscript (5)
+.SH AUTHOR
+(C) Gisle Aas, Norwegian Computing Centre (NR), 1991. <Gisle.Aas@nr.no>
+.br
+with additions of Peter W. Osel, Siemens AG, Munich, 1993.
+<pwo@zfe.siemens.de>
+.SH NOTES
+PostScript is a trademark of Adobe Systems, Incorporated.
+Perl is written by Larry Wall and is distributed under the
+terms of the GNU General Public License.
+.P
+Although Adobe's Document Structering Convention requires the Bounding
+Box to use integer coordinates only, we accept real coordinates
+(some applications seem to have not read Adobe's Document Structering
+Conventions).
+.ex
