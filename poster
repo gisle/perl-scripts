@@ -6,20 +6,18 @@
 
 require 'getopts.pl';
 
-$Usage = "Usage: $0 [-ftV] [-s scale_factor]\n";
+$Usage = "Usage: $0 [-ftv] [-s scale_factor]\n";
 
 # Command line options:
-die $Usage unless &Getopts('flps:tV');
+die $Usage unless &Getopts('flps:tv');
 
-$Version	= defined($opt_V) ? $opt_V : 0;
 $fit		= defined($opt_f) ? $opt_f : 0;
 $tile		= defined($opt_t) ? $opt_t : 0;
 $scale_factor	= defined($opt_s) ? $opt_s : 1;
 
-if ($Version) {
-	print STDERR "poster $Revision$ ($Date$)\n";
-	exit(0);
-	}
+if ($opt_v) {
+   die 'poster $Revision$ ($Date$)'."\n";
+}
 
 # Sanity checks:
 die "Illegal scale factor\n" if $scale_factor == 0;
@@ -203,7 +201,7 @@ poster \- print Encapsulated PostScript as (huge) poster
 .SH SYNOPSYS
 .B poster
 [
-.B \-ftV
+.B \-ftv
 ] [
 .B \-s
 .I scale_factor
@@ -225,7 +223,7 @@ scale uniformly, but not more than <num>.  The default is '-s 1'.
 .B \-t
 use tiling.  The \s-2EPS\s0 file is printed on several pages without scaling.
 .TP 5
-.B \-V
+.B \-v
 print version ond standard error and exit.
 .SH SEE ALSO
 .BR cltree (1),
@@ -240,7 +238,7 @@ with additions of Peter W. Osel, Siemens AG, Munich, 1993.
 PostScript is a trademark of Adobe Systems, Incorporated.
 Perl is written by Larry Wall and is distributed under the
 terms of the GNU General Public License.
-.P
+.SH BUGS
 Although Adobe's Document Structering Convention requires the Bounding
 Box to use integer coordinates only, we accept real coordinates
 (some applications seem to have not read Adobe's Document Structering

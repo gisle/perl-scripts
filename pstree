@@ -7,11 +7,11 @@
 
 require 'getopts.pl';
 
-$Usage = "Usage: $0 [-fFlL] [-d max_depth] [dirname]]\n";
+$Usage = "Usage: $0 [-fFlLv] [-d max_depth] [dirname]]\n";
 
-die $Usage unless &Getopts('d:fFlLV');
+die $Usage unless &Getopts('d:fFlLv');
 
-$Version	= defined($opt_V) ? $opt_V : 0;
+$Version	= defined($opt_v) ? $opt_v : 0;
 $ListFiles	= defined($opt_f) ? $opt_f : 0;
 $ListTypes	= defined($opt_F) ? $opt_F : 0;
 $MaxDepth	= defined($opt_d) ? $opt_d : -1;
@@ -19,9 +19,8 @@ $ForceLinks	= defined($opt_L) ? $opt_L : 0;
 $ShowLinkTarget	= defined($opt_l) ? $opt_l : 0;
 
 if ($Version) {
-	print STDERR "pstree $Revision$ ($Date$)\n";
-	exit(0);
-	}
+   die 'pstree $Revision$ ($Date$)'."\n";
+}
 
 # Sanity checks:
 die "pstree: max_depth must be numeric\n" unless $MaxDepth =~ /\d+/;
@@ -320,7 +319,7 @@ pstree \- produce directory map in PostScript
 .SH SYNOPSIS
 .B pstree
 [
-.B \-fFLV
+.B \-fFLv
 ] [
 .B \-d
 .I max_depth
@@ -375,7 +374,7 @@ Show link targets, i.e. where symbolic links are pointing to.
 .B \-L
 Include links pointing to nowhere in the map.
 .TP 5
-.B \-V
+.B \-v
 print version ond standard error and exit.
 .SH SEE ALSO
 .BR find (1),
@@ -392,10 +391,11 @@ with additions of Peter W. Osel, Siemens AG, Munich, 1993.  <pwo@zfe.siemens.de>
 PostScript is a trademark of Adobe Systems, Incorporated.
 Perl is written by Larry Wall and is distributed under the
 terms of the GNU General Public License.
-.P
+.SH BUGS
 Symbolic links are never traversed to avoid problems with circular links.
 .P
 The output should be similar to previous versions of
 .BR pstree ,
 if you provide the `-l' option.
 .ex
+
