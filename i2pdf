@@ -1,6 +1,20 @@
 #!/usr/bin/perl -w
 
+# $Id$
+
 use strict;
+
+#--- configuration
+my $fontsize = 8;
+my $leading  = 9;
+
+my $page_width   = 595;
+my $page_height  = 841;
+my $left_margin  =  80;
+my $right_margin =  40;
+my $top_margin = 40;
+my $bot_margin = $top_margin;
+#--- end configuration
 
 my $offset = 0;
 my @xref;
@@ -26,8 +40,8 @@ my @page_cont;
 for my $file (@ARGV) {
     open(F, $file) || next;
 
-    my $x = 80;
-    my $y = 755;
+    my $x = $left_margin;
+    my $y = $page_height - $top_margin;
 
     my $cont_id = start_obj();
     my $len_id = $cont_id + 1;
@@ -35,11 +49,34 @@ for my $file (@ARGV) {
     my $start_pos = out("<< /Length $len_id 0 R >>\nstream\n");
 
     out("BT\n");
-    out("/F1 8 Tf\n$x $y Td 10 TL\n");
+    out("/F1 $fontsize Tf\n$x $y Td $leading TL\n");
 
     while (<F>) {
-	# produce content
 	chomp;
+
+	# produce content
+	$y -= $leading;
+	if ($y <= $bot_margin) {
+	    # end previous page
+	    my $end_pos = out("ET\n");
+	    out("endstream\n");
+	    end_obj();
+	    obj($end_pos - $start_pos);
+	    push(@page_cont, $cont_id);
+
+	    # start a new page
+	    $x = $left_margin;
+	    $y = $page_height - $top_margin;
+
+	    $cont_id = start_obj();
+	    my $len_id = $cont_id + 1;
+	    $start_pos = out("<< /Length $len_id 0 R >>\nstream\n");
+
+	    out("BT\n");
+	    out("/F1 $fontsize Tf\n$x $y Td $leading TL\n");
+	}
+
+
 	if (/^\s*$/) {
 	    out("T*\n");
 	    next;
