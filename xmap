@@ -1,22 +1,42 @@
 #!/usr/local/bin/perl
 
-$rcfile="$ENV{HOME}/rcfile";
-open(RCFILE, $rcfile) 
-    || open(RCFILE, "/local/lib/X11/xinit/rcfile") 
-    || die "Can't open $rcfile or /local/lib/X11/xinit/rcfile";
-while(<RCFILE>) {
+# This program manipulates the X keymapping to include easy typing of
+# ISO8859/1 characters.
+#
+# Based on a versjon by Dag Asheim (dash).
+#
+# $Id$
+
+# parse command line options
+while ($_ = shift) {
+   $noop = 1, next if $_ eq "-n";
+   
+   ($progname = $0) =~ s#^.*/##;
+   die "Usage: $progname [-n]\n";
+}
+
+@keyfiles = ( "./keyfile",
+	      "$ENV{HOME}/keyfile",
+	      "/local/lib/X11/xinit/keyfile");
+for $keyfile (@keyfiles) { open(KEYFILE, $keyfile) && ($ok = 1, last); }
+die "Can't open any of @keyfiles" unless $ok;
+
+while(<KEYFILE>) {
+   s/#.*//;  # allow comments
    if (/^\s*([^=\s]+)\s*=\s*(\S+)/)
 	{ $alt{$1} = $2; }
    elsif (/^\s*([^=\s]+)\s+([^=\s]+)\s*=\s*([^=\s]+)\s+(\S+)/)
 	{ $alt{"$1;$2"} = "$3 $4"; }
 }
-close RCFILE;
+close KEYFILE;
 
 $one='\s+0x[\da-fA-F]+\s+\(([^)]+)\)';
 open(KEYS, "xmodmap -pk|") || die "Can't run xmodmap";
 
-open(OUT, "|xmodmap -") || die "Can't run xmodmap";
-select OUT unless shift eq "-n";
+unless ($noop) {
+  open(OUT, "|xmodmap -") || die "Can't run xmodmap";
+  select OUT;
+}
 
 while(<KEYS>) {
   $s3 = $s4 = $ns1 = $ns2 = $ns3 = $ns4 = undef;
