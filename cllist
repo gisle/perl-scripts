@@ -1,0 +1,41 @@
+#!/usr/local/bin/perl
+
+
+#     Copyright 1991, Gisle Aas, NR
+
+
+$/ = undef;
+while (<>) {
+   while (s/class\s+(\w+)\s*(:\s*(public|protected|private)?\s*(\w+))?\s*(,[^{]+)?\{//)
+   {
+      $class = $1;
+      if (defined($4)) {
+         $parent{$class} = $4;
+         $children{$4} .= "$class ";
+         $extra_parents{$class} = $5 if defined($5);
+      }
+      $file{$1} = $ARGV;
+      push(@classes, $class);
+   }
+}
+
+
+
+for $each (sort @classes) {
+   &print_node($each, 0) ;#unless defined($parent{$each});
+}
+
+
+sub print_node
+{
+   local($me, $level) = @_;
+   print " " x ($level * 3);
+   print "$me";
+   print " " x (50 - (length($me) + $level * 3)), $file{$me}, "\n";
+#   for (sort split(/\s+/, $children{$me})) {
+#      &print_node($_, $level + 1);
+#   }
+}
+
+
+

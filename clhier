@@ -1,0 +1,61 @@
+#!/usr/local/bin/perl
+
+# Usage: clhier <c++ header files>
+# Prints an overview over all C++ classses defined.
+
+#     Copyright 1991, Gisle Aas, NR
+
+$/ = undef;  # eat whole files
+while (<>) {
+   while (s/class\s+(\w+)\s*(:\s*((public|protected|private|virtual)\s+)*\s*(\w+))?\s*(,\s*[^{]+)?\{//)
+   {
+      # class classname : public baseclass, private baseclass2 {
+      #
+      # $1 = classname
+      # $2 = : public baseclass
+      # $3 = public <ws>
+      # $4 = public
+      # $5 = baseclass
+      # $6 = , private baseclass2
+
+      $class = $1;
+      if (defined($5)) {
+         $parent{$class} = $5;
+         $children{$5} .= "$class ";
+         $extra_parents{$class} = join(",",&base_split($6)) if defined($6);
+         $classes{$5} = 1;
+      }
+      $file{$1} = $ARGV;
+      $classes{$class} = 1;
+   }
+}
+
+
+for $each (sort keys %classes) {
+   &print_node($each, 0) unless defined($parent{$each});
+}
+
+
+sub print_node
+{
+   local($me, $level) = @_;
+   local($navn) = $me;
+   $navn .= " ($extra_parents{$me})" if defined $extra_parents{$me};
+   print " " x ($level * 3);
+   print "$navn";
+   print " " x (50 - (length($navn) + $level * 3)), $file{$me}, "\n";
+   for (sort split(/\s+/, $children{$me})) {
+      &print_node($_, $level + 1);
+   }
+}
+
+
+
+sub base_split
+{
+   local($_) = shift;
+   s/,/ /g;
+   s/(public|protected}private|virtual)//g;
+   s/^\s+//;
+   return split;
+}
