@@ -1,0 +1,12 @@
+#!/usr/local/bin/perl -p
+
+# This script makes various whitespace visible
+#
+# $Id$
+
+s/ /·/g;
+1 while s/\t/'»' x (8 - length($`) % 8)/e;
+s/\r/¶/g;
+s/\f/«form feed»/g;
+s/[\b]/«/g;
+

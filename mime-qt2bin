@@ -1,0 +1,36 @@
+#!/usr/local/bin/perl
+
+# Convert quoted printable mail messages to BINARY encoding
+#
+# $Id$
+
+if ($ARGV[0] eq "-f") {
+    shift;
+    $escape_from = 1;
+}
+
+$headers = 1;
+$do_qt_to_bin = 0;
+while (<>) {
+   $headers = 0 if /^\s*$/;
+   if ($headers) {
+      # also fix encoding in headers
+      s/=\?iso-8859-1\?q\?([^?]*)\?=/&qt2bin($1)/ie;
+      if (/^content-transfer-encoding:\s*quoted-printable/i) {
+         $_ = "Content-Transfer-Encoding: binary\n";
+         $do_qt_to_bin = 1;
+      }
+   } elsif ($do_qt_to_bin) {
+      s/=\n$//;   # soft line breaks
+      s/=([\da-fA-F]{2})/pack("C", hex($1))/ge;
+   }
+   s/^(From\s+)/>$1/ if !$headers && $escape_from;
+   print;
+}
+
+sub qt2bin
+{
+   local($_) = shift;
+   s/=([\da-fA-F]{2})/pack("C", hex($1))/ge;
+   $_;
+}
