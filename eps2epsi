@@ -7,7 +7,10 @@
 # is included. You need GhostScript to render the bitmaps for you.
 
 # $Log$
-# Revision 1.4  1992-09-08 17:41:27  aas
+# Revision 1.5  1992-12-02 08:35:36  aas
+# New option -i to do in-place editing of the EPS file.
+#
+# Revision 1.4  1992/09/08  17:41:27  aas
 # Some applications makes real (not integer) boundingbox coordinates, despite
 # what the DSC says.  These applications should really be fixed.  But while we
 # wait for that to happen....
@@ -26,15 +29,17 @@
 
 $prog_name = substr($0,rindex($0,"/")+1);
 require 'getopts.pl';
-unless (&Getopts('w:')) {
-  print STDOUT "Usage: $prog_name [-w <preview width>] [<file>]\n";
+unless (&Getopts('iw:')) {
+  print STDOUT "Usage: $prog_name [-i] [-w <preview width>] [<file>]\n";
   exit 1;
 }
 
 die 'To many files' if ($#ARGV > 0);
+die 'Must specify file when using in-place editing\n' if $#ARGV != 0 && $opt_i;
+$epsfile = $ARGV[0];
 
 @epsfile = <>;			# slurp
-die 'Not PostScript file' unless ($epsfile[0] =~ /^%!PS-Adobe-/);
+die 'Not a PostScript file\n' unless ($epsfile[0] =~ /^%!PS-Adobe-/);
 
 # Get the dimensions of the picture
 for (@epsfile) {
@@ -111,6 +116,12 @@ if ($#preview < 0) {
   exit 1;
 }
 
+if (defined $opt_i) {
+   $outputfile = "epsi.tmp$$";
+   open(EPSIFILE, ">$outputfile") || die "Can't create $outputfile";
+   select EPSIFILE;
+}
+
 print shift(epsfile);
 $_ = shift(epsfile);
 while (/^%%/) {
@@ -134,7 +145,10 @@ print $_ unless /^%%/;
 print grep(!(/^%%BeginPreview:/ .. /^%%EndPreview/) && !/^%%BoundingBox:/,
 	   @epsfile);
 
-
+if (defined $opt_i) {
+   rename($epsfile, "$epsfile~") || die "Can't rename $epsfile";
+   rename($outputfile, $epsfile) || die "Can't rename $outputfile to $epsfile";
+}
 
 
 
@@ -153,6 +167,8 @@ eps2epsi \- Filter for inclusion of a preview in an EPS file
 .SH SYNOPSIS
 .B eps2epsi
 [
+.B \-i
+] [
 .B \-w
 .I preview_width
 ] [
@@ -177,6 +193,9 @@ to render the preview bitmap, which means that
 must be installed at your system before you can use
 .B eps2epsi.
 .SH OPTIONS
+.TP 5
+.B \-i
+Edit the file in-place. A backup file is made with the suffix ~.
 .TP 5
 .BI \-w " n"
 Set the width (in characters) of the preview section. This also specifies the
