@@ -4,8 +4,8 @@
 
 use Getopt::Std;
 
-unless (getopts("lha")) {
-    die "Usage: $0 [-lha]\n";
+unless (getopts("lhau")) {
+    die "Usage: $0 [-lhau]\n";
 }
 
 $from = 128;
@@ -16,6 +16,7 @@ $from = 0 if $opt_l || $opt_a;
 
 
 use integer;
+binmode(STDOUT, ":utf8") if $opt_u;
 
 for ($from .. $to) {
     $chr = chr($_);
